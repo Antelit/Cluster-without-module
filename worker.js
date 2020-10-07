@@ -4,7 +4,7 @@ const PIDs = "PID"
 const MAIN_NODE = "MAIN_NODE"
 const RNDINTs = "RNDINTs"
 const PREF_SL_NODE = 'sl_Node_'
-const MasterIntervalMS = 600
+const MasterIntervalMS = 500
 const SlaveIntervalMS = 1000
 let idInterval
 
@@ -41,22 +41,32 @@ function IntervalSlave(){
         else{
             client.lrange(RNDINTs, 0, -1, function(err, cnt_int) {
                 if(cnt_int.length){
-                    let lastvar = cnt_int[0]
-                    client.get(PREF_SL_NODE + process.pid, function(err, reply) {
-                        if(!reply)
-                            client.set(PREF_SL_NODE + process.pid, 1)
-                        else
-                            client.set(PREF_SL_NODE + process.pid, parseInt(reply) + 1)        
-                    })
-                    client.LREM(RNDINTs, 1, lastvar);
-                    console.log("PID " + process.pid + "; queue " + cnt_int.length + "; action " + cnt_int[0])
+                    
+                    let id = randomIntFromInterval(0, cnt_int.length)
+                    let lastvar = cnt_int[id]
+                    if(lastvar){
+                        client.LREM(RNDINTs, 1, lastvar);
+                        client.get(PREF_SL_NODE + process.pid, function(err, reply) {
+                            if(!reply)
+                                client.set(PREF_SL_NODE + process.pid, 1)
+                            else
+                                client.set(PREF_SL_NODE + process.pid, parseInt(reply) + 1)        
+                        })
+                        console.log("PID " + process.pid + "; queue " + cnt_int.length + "; action " + lastvar)
+                        client.publish("pubsub", PREF_SL_NODE + process.pid)
+                    }
+                    else{
+                        console.log("PID " + process.pid + " !!!CRASH!!!")
+                        process.exit(1)
+                    }
                 }
             });
-            
         }
     })
 }
-
+function randomIntFromInterval(min, max) { // min and max included 
+    return Math.floor(Math.random() * (max - min + 1) + min);
+}
 process.on('message', function (msg) {
     console.log('MESSAGE ' + process.pid + " " + msg);
 });

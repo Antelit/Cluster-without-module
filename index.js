@@ -2,28 +2,39 @@ const fs = require('fs');
 const redis = require("redis");
 const client = redis.createClient();
 const child_process = require('child_process');
+const serverSocket = require('./socketServer')
 
 //taskkill /F /PID 22216
 
 const PIDs = "PID"
 const MAIN_NODE = "MAIN_NODE"
 
-client.on("error", function(error) {
-    console.error(error);
+console.log(process.pid)
+
+client.subscribe('pubsub'); 
+
+client.on("message", function(error,data) {
+    console.log("!!!!MSG " + data);
 });
 
-for(var i = 0; i < 3; i++) {
-    var worker_process = child_process.fork("worker.js", [i]); 
-    console.log(worker_process.pid)
+client.on("error", function(error) {
+    console.error("ERROR!!!!"  + error);
+});
 
-    worker_process.on('message', function (msg) {
-        //console.log(msg.PID);
-    });
-    
-    worker_process.on('close', function (code,q,w) {
-        CloseProcess(this)
-    });
-}
+    for(var i = 0; i < 3; i++) {
+        var worker_process = child_process.fork("worker.js", [i]); 
+        console.log(worker_process.pid)
+        worker_process.on('message', function (msg) {
+            console.log("!!!!!!!" + msg.PID);
+        });
+        
+        worker_process.on('close', function (code,q,w) {
+            CloseProcess(this)
+        });
+    }
+
+
+
 
 function CloseProcess(proc){
     console.log("Process " + proc.pid + " is DEAD!")
@@ -45,3 +56,4 @@ function CloseProcess(proc){
 function changeMainWork(PID){
     client.set(MAIN_NODE, PID);
 }
+
