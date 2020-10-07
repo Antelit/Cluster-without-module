@@ -1,0 +1,22 @@
+{
+  "name": "cluster-without-module",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Antelit/Cluster-without-module.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Antelit/Cluster-without-module/issues"
+  },
+  "homepage": "https://github.com/Antelit/Cluster-without-module#readme",
+  "dependencies": {
+    "redis": "^3.0.2"
+  }
+}
