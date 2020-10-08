@@ -36,11 +36,22 @@ client.lpush(PIDs, process.pid, function(err) {
 let lastID = 0
 
 function IntervalMaster(){
-    client.lpush(RNDINTs, Math.random());
-    /*client.lrange(PIDs, 0, -1, function(err, pr) {
-        (lastID >= pr.length - 1) ? lastID = 0 : lastID++
-    });*/
-    //console.log("PID " + process.pid + " I`m Main! ")
+    client.get(MAIN_NODE, function(err, reply) {
+        if(reply == process.pid){
+            client.lpush(RNDINTs, Math.random());
+        }
+        else{
+            clearInterval(idInterval)
+            t = {
+                "type": "Master",
+                "status": "BecameSlave",
+                "Node" : PREF_SL_NODE + process.pid
+                }
+            client.publish("pubsub", JSON.stringify( t) )
+
+            idInterval =  setInterval(IntervalSlave, SlaveIntervalMS)
+        }
+    });
 }
 
 function IntervalSlave(){
@@ -60,7 +71,7 @@ function IntervalSlave(){
             client.lrange(RNDINTs, 0, -1, function(err, cnt_int) {
                 if(cnt_int.length){
                     
-                    let id = randomIntFromInterval(0, cnt_int.length -1)
+                    let id = randomIntFromInterval(0, cnt_int.length)
                     let lastvar = cnt_int[id]
                     if(lastvar){
                         client.LREM(RNDINTs, 1, lastvar);

@@ -32,11 +32,17 @@
 
 <script>
 var socket = new WebSocket("ws://localhost:7000");
-let CNT = "_CNT"
-let VL = "_VL"
+const CNT = "_CNT"
+const VL = "_VL"
+const B_Kill_Node = "BKN_"
+const B_Change_Master = "BCM_"
 
 function KillProc(pid){
-    socket.send(pid);
+    let json = {
+        "action": "killNode",
+        "node": pid
+    }
+    socket.send(JSON.stringify(json));
     return true
 }
 
@@ -53,6 +59,9 @@ function showMessage(message) {
             
         if(jsonMessage.type == "Slave" && jsonMessage.status == "ActionComplite")
             ActionCompileNode(jsonMessage)
+        
+        if(jsonMessage.type == "Master" && jsonMessage.status == "BecameSlave")
+            BecameSlave(jsonMessage)
 
         if(jsonMessage.status == "NodeCrash")
             CrashNode(jsonMessage)
@@ -72,33 +81,36 @@ function showMessage(message) {
 function CreateNode(node, dead = false){
     let type
     let live
-    if(node.type == "Master")
-        type = "MN"
-    else
-        type = "SN"
-    
-    if(dead)
-        live = "Down"
-    else
-        live = "Run"
+    type = (node.type == "Master") ? "MN" : "SN"
+    live = dead ? "Down" : "Run"
 
     let div = selfCreateElement("div", {id : node.Node})
     
     let spanNm = selfCreateElement("span", {innerText : node.Node})
     let spanAv = selfCreateElement("span", {innerText : (node.Processed ? node.Processed : "0") , id:node.Node + CNT})
     let spanVl = selfCreateElement("span", {innerText: node.ActionValue,  id:node.Node + VL})
-    let kill = selfCreateElement("button", {innerText: "KILL",  id:node.Node, onclick:"ell(event)"})
-
+    let kill = selfCreateElement("button", {innerText: "KILL NODE",  id: B_Kill_Node + node.Node, onclick:"killClick(event)"})
+    let SetMaster = selfCreateElement("button", {innerText: "SET MASTER",  id: B_Change_Master + node.Node, onclick:"SetMasterClick(event)", disabled: (node.type =="Master")?true:false})
+    
     div.appendChild(kill)
+    div.appendChild(SetMaster)
     div.appendChild(spanNm)
     div.appendChild(spanAv)
     div.appendChild(spanVl)
     
+    
     document.getElementById(type + live).appendChild(div)
 
 }
-function ell(event){
+function killClick(event){
     KillProc(returnINT(event.target.id))
+}
+function SetMasterClick(event){
+    let json = {
+        "action": "changeMaster",
+        "node": returnINT(event.target.id)
+    }
+    socket.send(JSON.stringify(json));
 }
 
 function returnINT(val){
@@ -109,6 +121,8 @@ function returnINT(val){
 }
 function CrashNode(node){
     if(document.getElementById(node.Node)){
+        document.getElementById(B_Kill_Node + node.Node).setAttribute("disabled", true)
+        document.getElementById(B_Change_Master + node.Node).setAttribute("disabled", true)
         if(document.getElementById(node.Node).parentNode.id == "MNRun")
             document.getElementById("MNDown").appendChild(document.getElementById(node.Node))
         else
@@ -130,22 +144,19 @@ function ChangeStatusNode(node){
         document.getElementById("MNDown").appendChild(document.getElementById("MNRun").children[0])
     }
     document.getElementById("MNRun").appendChild(document.getElementById(node.Node))
+    document.getElementById(B_Change_Master + node.Node).setAttribute("disabled", true)
     
 }
+
+function BecameSlave(node){
+    document.getElementById("SNRun").appendChild(document.getElementById(node.Node))
+    document.getElementById(B_Change_Master + node.Node).removeAttribute("disabled")
+}
 function InitNode(nodes){
-    
-    let Master = {
-            "type": "Master",
-            "status": "Create",
-            "Node" : "Node_" + nodes.Master.Run
-    }
+    let Master = { "type": "Master","status": "Create","Node" : "Node_" + nodes.Master.Run }
     CreateNode(Master)
     for (let index = 0; index < nodes.Slave.Run.length; index++) {
-        let Slave = {
-            "type": "Slave",
-            "status": "Create",
-            "Node" : "Node_" + nodes.Slave.Run[index]
-        }
+        let Slave = { "type": "Slave","status": "Create","Node" : "Node_" + nodes.Slave.Run[index] }
         CreateNode(Slave)
     }
 }

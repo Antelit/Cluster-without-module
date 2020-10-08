@@ -121,9 +121,31 @@ webSocketServer.on('connection', function(ws) {
 });
 
 function onMessage(Message){
-    spawn("taskkill", ["/pid", Message, '/f', '/t']);
+    try{
+        let msg = JSON.parse(Message)
+        switch(msg.action){
+            case "killNode":
+                StopProcess(msg.node)
+            break;
+            case "changeMaster":
+                changeMainWork(msg.node)
+            break;
+        }
+    }catch(e){
+        console.log(e)
+    }
 }
-
+function StopProcess(pid){
+    switch(process.platform) {
+        case 'win32':
+            spawn("taskkill", ["/pid", pid, '/f', '/t']);
+        break;
+        case 'darwin':
+            spawn("kill", [pid]);
+        default:
+            console.log(process.platform)
+    }
+}
 function onClose(ID_Client){
     console.log('Connection Close ' + ID_Client);
     delete clients[ID_Client];
