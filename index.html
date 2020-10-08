@@ -1,43 +1,223 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Socket.io example</title>
+    <head>
+        <meta charset="UTF-8" />
+        <title>Socket.io example</title>
+    </head>
+    <body>
+        <div class="container">
+            <div class="MasterNode">
+                <h1> MASTER NODE</h1>
+                <div class="MasterNodeRun" id="MNRun">
+                    
+                </div>
+                <h1> DEAD MASTER NODEs</h1>
+                <div class="MasterNodeDown" id="MNDown">
 
-  </head>
-  <body>
-    <!-- форма для отправки сообщений -->
-    <form name="publish">
-      <input type="text" name="message">
-      <input type="submit" value="Отправить">
-    </form>
+                </div>
+            </div>
+            <div class="SlaveNode">
+                <h1> WORK SLAVE NODEs</h1>
+                <div class="SlaveNodeRun" id="SNRun">
+                    
+                </div>
+                <h1> DEAD SLAVE NODEs</h1>
+                <div class="SlaveNodeDown" id="SNDown">
 
-    <!-- здесь будут появляться входящие сообщения -->
-    <div id="subscribe"></div>
-  </body>
+                </div>
+            </div>
+        </div>
+    </body>
 </html>
 
 <script>
-  var socket = new WebSocket("ws://localhost:8081");
+var socket = new WebSocket("ws://localhost:7000");
+let CNT = "_CNT"
+let VL = "_VL"
 
-// отправить сообщение из формы publish
-document.forms.publish.onsubmit = function() {
-  var outgoingMessage = this.message.value;
+function KillProc(pid){
+    socket.send(pid);
+    return true
+}
 
-  socket.send(outgoingMessage);
-  return false;
-};
-
-// обработчик входящих сообщений
 socket.onmessage = function(event) {
-  var incomingMessage = event.data;
-  showMessage(incomingMessage);
+    var incomingMessage = event.data;
+    showMessage(incomingMessage);
 };
 
-// показать сообщение в div#subscribe
 function showMessage(message) {
-  var messageElem = document.createElement('div');
-  messageElem.appendChild(document.createTextNode(message));
-  document.getElementById('subscribe').appendChild(messageElem);
+    try{
+        let jsonMessage = JSON.parse(message)
+        if(jsonMessage.status == "Create")
+            CreateNode(jsonMessage)
+            
+        if(jsonMessage.type == "Slave" && jsonMessage.status == "ActionComplite")
+            ActionCompileNode(jsonMessage)
+
+        if(jsonMessage.status == "NodeCrash")
+            CrashNode(jsonMessage)
+        
+        if(jsonMessage.status == "Change")
+            ChangeStatusNode(jsonMessage)
+        
+        if(jsonMessage.type == "init")
+            InitNode(jsonMessage)
+
+        //console.log(jsonMessage)
+    }
+    catch(e){
+        console.log("Message is not JSON! " + message + " " + e)
+    }
+}
+function CreateNode(node, dead = false){
+    let type
+    let live
+    if(node.type == "Master")
+        type = "MN"
+    else
+        type = "SN"
+    
+    if(dead)
+        live = "Down"
+    else
+        live = "Run"
+
+    let div = selfCreateElement("div", {id : node.Node})
+    
+    let spanNm = selfCreateElement("span", {innerText : node.Node})
+    let spanAv = selfCreateElement("span", {innerText : (node.Processed ? node.Processed : "0") , id:node.Node + CNT})
+    let spanVl = selfCreateElement("span", {innerText: node.ActionValue,  id:node.Node + VL})
+    let kill = selfCreateElement("button", {innerText: "KILL",  id:node.Node, onclick:"ell(event)"})
+
+    div.appendChild(kill)
+    div.appendChild(spanNm)
+    div.appendChild(spanAv)
+    div.appendChild(spanVl)
+    
+    document.getElementById(type + live).appendChild(div)
+
+}
+function ell(event){
+    KillProc(returnINT(event.target.id))
+}
+
+function returnINT(val){
+    const regex = /\d+/gm;
+    const str = val;
+    let m = regex.exec(str)
+    return m[0]
+}
+function CrashNode(node){
+    if(document.getElementById(node.Node)){
+        if(document.getElementById(node.Node).parentNode.id == "MNRun")
+            document.getElementById("MNDown").appendChild(document.getElementById(node.Node))
+        else
+            document.getElementById("SNDown").appendChild(document.getElementById(node.Node))
+    }
+}
+
+function ActionCompileNode(node){
+    if(!document.getElementById(node.Node))
+        CreateNode(node)
+    else{
+        document.getElementById(node.Node + CNT).innerText = node.Processed
+        document.getElementById(node.Node + VL).innerText = node.ActionValue
+    }
+}
+
+function ChangeStatusNode(node){
+    if(document.getElementById("MNRun").children[0]){
+        document.getElementById("MNDown").appendChild(document.getElementById("MNRun").children[0])
+    }
+    document.getElementById("MNRun").appendChild(document.getElementById(node.Node))
+    
+}
+function InitNode(nodes){
+    
+    let Master = {
+            "type": "Master",
+            "status": "Create",
+            "Node" : "Node_" + nodes.Master.Run
+    }
+    CreateNode(Master)
+    for (let index = 0; index < nodes.Slave.Run.length; index++) {
+        let Slave = {
+            "type": "Slave",
+            "status": "Create",
+            "Node" : "Node_" + nodes.Slave.Run[index]
+        }
+        CreateNode(Slave)
+    }
+}
+
+function selfCreateElement(typeElement, params){
+    let el  = document.createElement(typeElement)
+    if(params != undefined) {
+        if (params.id)
+            el.setAttribute("id", params.id)
+        if (params.class)
+            el.setAttribute("class", params.class)
+        if (params.value) {
+            if (typeElement == 'textarea')
+                el.innerText = params.value
+            else
+                el.setAttribute("value", params.value)
+        }
+        if (params.type)
+            el.setAttribute("type", params.type)
+        if (params.style)
+            el.setAttribute("style", params.style)
+        if (params.type == "checkbox" && params.checked)
+            el.setAttribute("checked", params.checked)
+        if (params.innerHTML)
+            el.innerHTML = params.innerHTML
+        if (params.href)
+            el.href = params.href
+        if (params.innerText)
+            el.innerText = params.innerText
+        if (params.disabled)
+            el.setAttribute("disabled", params.disabled)
+        if (params.for)
+            el.setAttribute("for", params.for)
+
+        if (params.data_parent)
+            el.setAttribute("data-parent", params.data_parent)
+        if (params.data_parentNode)
+            el.setAttribute("data-parentNode", params.data_parentNode)
+        if (params.data_treeLevel)
+            el.setAttribute("data-treeLevel", params.data_treeLevel)
+        if (params.data_hasJob)
+            el.setAttribute("data-hasJob", params.data_hasJob)
+
+        if(params.onclick)
+            el.setAttribute("onclick", params.onclick)
+        if(params.onblur)
+            el.setAttribute("onblur", params.onblur)
+        if(params.onkeydown)
+            el.setAttribute("onkeydown", params.onkeydown)
+        if(params.onkeyup)
+            el.setAttribute("onkeyup", params.onkeyup)
+
+    }
+    //console.log(el)
+    return el
 }
 </script>
+
+<style>
+    .SlaveNodeRun{
+        border: 1px solid green;
+    }
+    .MasterNodeRun{
+        border: 1px solid green;
+    }
+    .SlaveNodeDown{
+        border: 1px solid red;
+    }
+    .MasterNodeDown{
+        border: 1px solid red;
+    }
+    span{
+        margin: 10px;
+    }
+</style>
