@@ -7,7 +7,8 @@
     <body>
         <div class="container">
             <div class="MasterNode">
-                <h1> MASTER NODE</h1>
+                <h1> MASTER NODE </h1>
+                <h3> Queue: <span id="Queue"></span></h3>
                 <div class="MasterNodeRun" id="MNRun">
                     
                 </div>
@@ -31,19 +32,21 @@
 </html>
 
 <script>
-var socket = new WebSocket("ws://localhost:7000");
+const socket = new WebSocket("ws://localhost:7000");
 const CNT = "_CNT"
 const VL = "_VL"
 const B_Kill_Node = "BKN_"
 const B_Change_Master = "BCM_"
 
+const MNRun = document.getElementById("MNRun")
+const MNDown = document.getElementById("MNDown")
+const SNRun = document.getElementById("SNRun")
+const SNDown = document.getElementById("SNDown")
+const Queue = document.getElementById("Queue")
+
 function KillProc(pid){
-    let json = {
-        "action": "killNode",
-        "node": pid
-    }
+    let json = { "action": "killNode", "node": pid }
     socket.send(JSON.stringify(json));
-    return true
 }
 
 socket.onmessage = function(event) {
@@ -71,6 +74,9 @@ function showMessage(message) {
         
         if(jsonMessage.type == "init")
             InitNode(jsonMessage)
+        
+        if(jsonMessage.type == "Master" && jsonMessage.status == "QueueWait")
+            ChangeQueue(jsonMessage)
 
         //console.log(jsonMessage)
     }
@@ -86,30 +92,36 @@ function CreateNode(node, dead = false){
 
     let div = selfCreateElement("div", {id : node.Node})
     
-    let spanNm = selfCreateElement("span", {innerText : node.Node})
-    let spanAv = selfCreateElement("span", {innerText : (node.Processed ? node.Processed : "0") , id:node.Node + CNT})
-    let spanVl = selfCreateElement("span", {innerText: node.ActionValue,  id:node.Node + VL})
-    let kill = selfCreateElement("button", {innerText: "KILL NODE",  id: B_Kill_Node + node.Node, onclick:"killClick(event)"})
-    let SetMaster = selfCreateElement("button", {innerText: "SET MASTER",  id: B_Change_Master + node.Node, onclick:"SetMasterClick(event)", disabled: (node.type =="Master")?true:false})
+    let spanNm = selfCreateElement("span", {innerText: node.Node})
+    let spanAv = selfCreateElement("span", {innerText: (node.Processed ? node.Processed : "0") , id: node.Node + CNT})
+    let spanVl = selfCreateElement("span", {innerText: node.ActionValue,  id: node.Node + VL})
+    let kill = selfCreateElement("button", 
+                        {innerText: "KILL NODE",  id: B_Kill_Node + node.Node, 
+                        onclick: "killClick(event)",
+                        disabled: (dead) ? true : false
+                    })
+    let SetMaster = selfCreateElement("button", {
+                        innerText: "SET MASTER",  id: B_Change_Master + node.Node, 
+                        onclick:"SetMasterClick(event)", 
+                        disabled: (node.type =="Master" || dead) ? true : false})
     
     div.appendChild(kill)
     div.appendChild(SetMaster)
     div.appendChild(spanNm)
     div.appendChild(spanAv)
     div.appendChild(spanVl)
-    
-    
-    document.getElementById(type + live).appendChild(div)
 
+    document.getElementById(type + live).appendChild(div)
 }
 function killClick(event){
     KillProc(returnINT(event.target.id))
 }
+
+function ChangeQueue(event){
+    Queue.innerText = event.Count
+}
 function SetMasterClick(event){
-    let json = {
-        "action": "changeMaster",
-        "node": returnINT(event.target.id)
-    }
+    let json = { "action": "changeMaster", "node": returnINT(event.target.id) }
     socket.send(JSON.stringify(json));
 }
 
@@ -124,9 +136,9 @@ function CrashNode(node){
         document.getElementById(B_Kill_Node + node.Node).setAttribute("disabled", true)
         document.getElementById(B_Change_Master + node.Node).setAttribute("disabled", true)
         if(document.getElementById(node.Node).parentNode.id == "MNRun")
-            document.getElementById("MNDown").appendChild(document.getElementById(node.Node))
+            MNDown.appendChild(document.getElementById(node.Node))
         else
-            document.getElementById("SNDown").appendChild(document.getElementById(node.Node))
+            SNDown.appendChild(document.getElementById(node.Node))
     }
 }
 
@@ -140,24 +152,34 @@ function ActionCompileNode(node){
 }
 
 function ChangeStatusNode(node){
-    if(document.getElementById("MNRun").children[0]){
-        document.getElementById("MNDown").appendChild(document.getElementById("MNRun").children[0])
-    }
-    document.getElementById("MNRun").appendChild(document.getElementById(node.Node))
-    document.getElementById(B_Change_Master + node.Node).setAttribute("disabled", true)
+    if(MNRun.children[0])
+        MNDown.appendChild(MNRun.children[0])
     
+    MNRun.appendChild(document.getElementById(node.Node))
+    document.getElementById(B_Change_Master + node.Node).setAttribute("disabled", true)
 }
 
 function BecameSlave(node){
-    document.getElementById("SNRun").appendChild(document.getElementById(node.Node))
+    SNRun.appendChild(document.getElementById(node.Node))
     document.getElementById(B_Change_Master + node.Node).removeAttribute("disabled")
 }
+
 function InitNode(nodes){
     let Master = { "type": "Master","status": "Create","Node" : "Node_" + nodes.Master.Run }
     CreateNode(Master)
     for (let index = 0; index < nodes.Slave.Run.length; index++) {
         let Slave = { "type": "Slave","status": "Create","Node" : "Node_" + nodes.Slave.Run[index] }
         CreateNode(Slave)
+    }
+
+    for (let index = 0; index < nodes.Slave.Dead.length; index++) {
+        let node = { "type": "Slave","status": "Create","Node" : "Node_" + nodes.Slave.Dead[index] }
+        CreateNode(node, true)
+    }
+
+    for (let index = 0; index < nodes.Master.Dead.length; index++) {
+        let node = { "type": "Master","status": "Create","Node" : "Node_" + nodes.Master.Dead[index] }
+        CreateNode(node, true)
     }
 }
 
@@ -166,51 +188,14 @@ function selfCreateElement(typeElement, params){
     if(params != undefined) {
         if (params.id)
             el.setAttribute("id", params.id)
-        if (params.class)
-            el.setAttribute("class", params.class)
-        if (params.value) {
-            if (typeElement == 'textarea')
-                el.innerText = params.value
-            else
-                el.setAttribute("value", params.value)
-        }
-        if (params.type)
-            el.setAttribute("type", params.type)
-        if (params.style)
-            el.setAttribute("style", params.style)
-        if (params.type == "checkbox" && params.checked)
-            el.setAttribute("checked", params.checked)
-        if (params.innerHTML)
-            el.innerHTML = params.innerHTML
-        if (params.href)
-            el.href = params.href
         if (params.innerText)
             el.innerText = params.innerText
         if (params.disabled)
             el.setAttribute("disabled", params.disabled)
-        if (params.for)
-            el.setAttribute("for", params.for)
-
-        if (params.data_parent)
-            el.setAttribute("data-parent", params.data_parent)
-        if (params.data_parentNode)
-            el.setAttribute("data-parentNode", params.data_parentNode)
-        if (params.data_treeLevel)
-            el.setAttribute("data-treeLevel", params.data_treeLevel)
-        if (params.data_hasJob)
-            el.setAttribute("data-hasJob", params.data_hasJob)
 
         if(params.onclick)
             el.setAttribute("onclick", params.onclick)
-        if(params.onblur)
-            el.setAttribute("onblur", params.onblur)
-        if(params.onkeydown)
-            el.setAttribute("onkeydown", params.onkeydown)
-        if(params.onkeyup)
-            el.setAttribute("onkeyup", params.onkeyup)
-
     }
-    //console.log(el)
     return el
 }
 </script>

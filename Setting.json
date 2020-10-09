@@ -1,0 +1,22 @@
+{
+    "Node":{
+        "Count": 5,
+        "Prefix_Node": "Node_",
+        "Debug":false,
+        "MasterInterval": 100,
+        "SlaveInterval": 500,
+        "MoreCrasheSlave": false
+    },
+    "Redis":{
+        "keyMainNode": "Master_Node",
+        "keyWorkProcess": "WorkProcess",
+        "keySubscribe": "Event",
+        "keyQueue":"Queue",
+        "keyDeadMaster":"DeadMasters",
+        "keyDeadSlave":"DeadSlaves"
+    },
+    "WebSocket":{
+        "Port": 7000,
+        "Debug": false
+    }
+}
