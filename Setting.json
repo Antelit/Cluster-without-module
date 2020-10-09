@@ -3,7 +3,7 @@
         "Count": 5,
         "Prefix_Node": "Node_",
         "Debug":false,
-        "MasterInterval": 100,
+        "MasterInterval": 50,
         "SlaveInterval": 500,
         "MoreCrasheSlave": false
     },

@@ -19,6 +19,7 @@
             </div>
             <div class="SlaveNode">
                 <h1> WORK SLAVE NODEs</h1>
+                <button onclick="AddNewNode()">Add New Node</button>
                 <div class="SlaveNodeRun" id="SNRun">
                     
                 </div>
@@ -37,6 +38,7 @@ const CNT = "_CNT"
 const VL = "_VL"
 const B_Kill_Node = "BKN_"
 const B_Change_Master = "BCM_"
+const B_Stop_Node = "BSN_"
 
 const MNRun = document.getElementById("MNRun")
 const MNDown = document.getElementById("MNDown")
@@ -45,7 +47,7 @@ const SNDown = document.getElementById("SNDown")
 const Queue = document.getElementById("Queue")
 
 function KillProc(pid){
-    let json = { "action": "killNode", "node": pid }
+    let json = { "action": "crashNode", "node": pid }
     socket.send(JSON.stringify(json));
 }
 
@@ -95,9 +97,9 @@ function CreateNode(node, dead = false){
     let spanNm = selfCreateElement("span", {innerText: node.Node})
     let spanAv = selfCreateElement("span", {innerText: (node.Processed ? node.Processed : "0") , id: node.Node + CNT})
     let spanVl = selfCreateElement("span", {innerText: node.ActionValue,  id: node.Node + VL})
-    let kill = selfCreateElement("button", 
-                        {innerText: "KILL NODE",  id: B_Kill_Node + node.Node, 
-                        onclick: "killClick(event)",
+    let CrashNode = selfCreateElement("button", 
+                        {innerText: "CRASH NODE",  id: B_Kill_Node + node.Node, 
+                        onclick: "CrashClick(event)",
                         disabled: (dead) ? true : false
                     })
     let SetMaster = selfCreateElement("button", {
@@ -105,21 +107,35 @@ function CreateNode(node, dead = false){
                         onclick:"SetMasterClick(event)", 
                         disabled: (node.type =="Master" || dead) ? true : false})
     
-    div.appendChild(kill)
+    let StopNode = selfCreateElement("button", {
+                        innerText: "STOP NODE",  id: B_Stop_Node + node.Node, 
+                        onclick:"StopClick(event)", 
+                        disabled: (node.type =="Master" || dead) ? true : false})
+    
+    div.appendChild(CrashNode)
     div.appendChild(SetMaster)
+    div.appendChild(StopNode)
     div.appendChild(spanNm)
     div.appendChild(spanAv)
     div.appendChild(spanVl)
 
     document.getElementById(type + live).appendChild(div)
 }
-function killClick(event){
+function CrashClick(event){
     KillProc(returnINT(event.target.id))
 }
-
+function AddNewNode(){
+    let json = {"action": "startNewNode"}
+    socket.send(JSON.stringify(json));
+}
+function StopClick(event){
+    let json = { "action": "stopNode", "node": returnINT(event.target.id) }
+    socket.send(JSON.stringify(json));
+}
 function ChangeQueue(event){
     Queue.innerText = event.Count
 }
+
 function SetMasterClick(event){
     let json = { "action": "changeMaster", "node": returnINT(event.target.id) }
     socket.send(JSON.stringify(json));
@@ -135,6 +151,8 @@ function CrashNode(node){
     if(document.getElementById(node.Node)){
         document.getElementById(B_Kill_Node + node.Node).setAttribute("disabled", true)
         document.getElementById(B_Change_Master + node.Node).setAttribute("disabled", true)
+        document.getElementById(B_Stop_Node + node.Node).setAttribute("disabled", true)
+
         if(document.getElementById(node.Node).parentNode.id == "MNRun")
             MNDown.appendChild(document.getElementById(node.Node))
         else
@@ -162,6 +180,7 @@ function ChangeStatusNode(node){
 function BecameSlave(node){
     SNRun.appendChild(document.getElementById(node.Node))
     document.getElementById(B_Change_Master + node.Node).removeAttribute("disabled")
+    document.getElementById(B_Stop_Node + node.Node).removeAttribute("disabled")
 }
 
 function InitNode(nodes){

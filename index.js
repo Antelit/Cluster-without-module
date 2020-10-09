@@ -23,7 +23,7 @@ const client = redis.createClient();        // Client for work on redis
 const subscriber = redis.createClient();    // Client on subscribe event
 
 let clients = {};                       // List WebSocket Client
-
+let OFF = false
 client.flushall();                      // Clear Redis DB
 subscriber.subscribe(SUBSCRIBE_KEY);    // Listen Event on key
 
@@ -47,6 +47,8 @@ for(var i = 0; i < COUNT_NODES; i++) {
 }
 
 function CloseProcess(proc){
+    let a = OFF;
+    OFF = false
     if(NODEDEBUG)
         console.log(`Process ${proc.pid} is DEAD!`) 
 
@@ -72,12 +74,13 @@ function CloseProcess(proc){
             client.lpush(DEADSLAVES_KEY, proc.pid);
         }
     })
-
-    var worker_process = child_process.fork("worker.js"); // Start new node 
-    //Listen Event 'close' on Worker
-    worker_process.on('close', function () {
-        CloseProcess(this)
-    });
+    if(!a){
+        var worker_process = child_process.fork("worker.js"); // Start new node 
+        //Listen Event 'close' on Worker
+        worker_process.on('close', function () {
+            CloseProcess(this)
+        });
+    }
 }
 
 function changeMainWork(PID){
@@ -118,7 +121,6 @@ webSocketServer.on('connection', function(WebSocketClient) {
                     WebSocketClient.send(JSON.stringify(js));
                 })
             })
-            
         });
     })
     
@@ -137,11 +139,18 @@ function onMessage(Message){
     try{
         let msg = JSON.parse(Message)
         switch(msg.action){
-            case "killNode":
+            case "crashNode":
                 StopProcess(msg.node)
             break;
             case "changeMaster":
                 changeMainWork(msg.node)
+            break;
+            case "stopNode":
+                OFF = true
+                StopProcess(msg.node)
+            break;
+            case "startNewNode":
+                StartProcess(msg.node)
             break;
         }
     }catch(e){
@@ -160,6 +169,14 @@ function StopProcess(pid){
             console.log(process.platform)
     }
 }
+function StartProcess(){
+    var worker_process = child_process.fork("worker.js"); // Start new node 
+    //Listen Event 'close' on Worker
+    worker_process.on('close', function () {
+        CloseProcess(this)
+    });
+}
+
 function onClose(ID_Client){
     if(WEBSOCKETDEBUG)
         console.log(`WebSocket Client ${ID_Client} disconect`) 
